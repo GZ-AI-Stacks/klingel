@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#06080a">
+<title>🚪 Klingeln</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🚪%3C/text%3E%3C/svg%3E">
+<style>
+:root{--bg:#06080a;--card:#0e1218;--text:#c8d0e0;--dim:#6b7a90;--neon:#00FFAA;--cyan:#00B4FF;--pink:#FF0080;--purple:#8C00FF;--ok:#00cc66;--err:#e05555;--warn:#FFAA00;}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:radial-gradient(circle at 50% 0%,#0e1830 0%,#06080a 70%);color:var(--text);min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:20px;}
+.container{width:100%;max-width:480px;background:var(--card);border:1px solid #1a1f2a;border-radius:18px;padding:30px 24px;box-shadow:0 0 40px rgba(0,180,255,.15);position:relative;overflow:hidden;}
+.container::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--cyan),var(--purple),var(--pink),var(--neon));}
+header{text-align:center;margin-bottom:24px;}
+.icon{font-size:4rem;margin-bottom:8px;filter:drop-shadow(0 0 14px rgba(0,255,170,.6));animation:pulse 2s infinite ease-in-out;}
+@keyframes pulse{0%,100%{transform:scale(1);}50%{transform:scale(1.05);}}
+h1{font-size:1.6rem;font-weight:700;background:linear-gradient(135deg,var(--neon),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:4px;}
+.sub{color:var(--dim);font-size:.85rem;}
+#status{margin:14px 0 18px;text-align:center;font-size:.78rem;padding:8px;border-radius:6px;}
+.status-ok{background:rgba(0,204,102,.1);color:var(--ok);border:1px solid rgba(0,204,102,.3);}
+.status-warn{background:rgba(255,170,0,.1);color:var(--warn);border:1px solid rgba(255,170,0,.3);}
+.status-err{background:rgba(224,85,85,.1);color:var(--err);border:1px solid rgba(224,85,85,.3);}
+.field{margin-bottom:14px;}
+.field label{display:block;font-size:.75rem;color:var(--dim);margin-bottom:4px;}
+.field input,.field textarea{width:100%;background:#0a0e14;color:var(--text);border:1px solid #1a1f2a;border-radius:8px;padding:10px 12px;font-size:.9rem;font-family:inherit;outline:none;transition:border-color .2s;}
+.field input:focus,.field textarea:focus{border-color:var(--cyan);}
+.field textarea{resize:vertical;min-height:60px;}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:14px;border:none;border-radius:10px;font-size:1rem;font-weight:700;cursor:pointer;transition:transform .1s,box-shadow .2s;font-family:inherit;margin-bottom:10px;text-decoration:none;color:inherit;}
+.btn:active{transform:scale(.97);}
+.btn-primary{background:linear-gradient(135deg,var(--pink),var(--purple));color:#fff;box-shadow:0 4px 20px rgba(255,0,128,.3);}
+.btn-primary:hover{box-shadow:0 4px 30px rgba(255,0,128,.5);}
+.btn-secondary{background:rgba(0,180,255,.1);color:var(--cyan);border:1px solid rgba(0,180,255,.3);}
+.btn-secondary:hover{background:rgba(0,180,255,.2);}
+.btn-secondary.wa{background:rgba(37,211,102,.1);color:#25D366;border-color:rgba(37,211,102,.3);}
+.btn-secondary.wa:hover{background:rgba(37,211,102,.2);}
+.divider{margin:18px 0;text-align:center;color:var(--dim);font-size:.7rem;letter-spacing:1px;position:relative;}
+.divider::before,.divider::after{content:'';position:absolute;top:50%;width:35%;height:1px;background:#1a1f2a;}
+.divider::before{left:0;}
+.divider::after{right:0;}
+.hint{font-size:.7rem;color:var(--dim);text-align:center;margin-top:14px;line-height:1.5;}
+.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:var(--card);border:1px solid var(--cyan);color:var(--text);padding:14px 22px;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.6);font-size:.9rem;z-index:9999;opacity:0;transition:opacity .3s;}
+.toast.show{opacity:1;}
+.toast.ok{border-color:var(--ok);color:var(--ok);}
+.toast.err{border-color:var(--err);color:var(--err);}
+@media(max-width:380px){.container{padding:20px 16px;}h1{font-size:1.3rem;}.icon{font-size:3rem;}}
+</style>
+</head>
+<body>
+<div class="container">
+    <header>
+        <div class="icon">🚪</div>
+        <h1 id="title">Klingeln</h1>
+        <div class="sub" id="subtitle">bei <b id="owner">Gerd</b></div>
+    </header>
+
+    <div id="status">⏳ Verbinde mit NOVA …</div>
+
+    <div class="field">
+        <label for="vname">Dein Name (optional)</label>
+        <input type="text" id="vname" placeholder="z.B. DHL · Max Mustermann · Pizza-Bote" maxlength="50" autocomplete="name">
+    </div>
+    <div class="field">
+        <label for="vmsg">Nachricht / Anliegen (optional)</label>
+        <textarea id="vmsg" placeholder="Paket abgeben · Ich bin's, der Nachbar · …" maxlength="200"></textarea>
+    </div>
+
+    <button type="button" class="btn btn-primary" id="btn-ring">🔔 KLINGELN</button>
+
+    <div class="divider">— ODER DIREKT —</div>
+
+    <a class="btn btn-secondary" id="btn-call" href="#" target="_blank">📞 Anrufen</a>
+    <a class="btn btn-secondary wa" id="btn-wa" href="#" target="_blank">💬 WhatsApp</a>
+
+    <div class="hint">
+        Der QR-Code an der Tür gehört zu <b id="ownerHint">Gerd</b>.<br>
+        Beim Klingeln bekommt <span id="ownerHint2">Gerd</span> sofort eine Benachrichtigung.<br>
+        <span style="opacity:.7;font-size:.65rem;">Powered by NOVA · GZ-AI.-Stacks</span>
+    </div>
+</div>
+
+<script>
+(async function() {
+    const params = new URLSearchParams(location.search);
+    const owner = params.get('owner') || 'Gerd';
+    const token = params.get('token') || '';
+    const phone = params.get('phone') || '';
+
+    document.getElementById('owner').textContent = owner;
+    document.getElementById('ownerHint').textContent = owner;
+    document.getElementById('ownerHint2').textContent = owner;
+    document.title = '🚪 Klingeln bei ' + owner;
+
+    if (phone) {
+        document.getElementById('btn-call').href = 'tel:' + phone;
+        document.getElementById('btn-wa').href = 'https://wa.me/' + phone.replace(/\D/g,'');
+    } else {
+        document.getElementById('btn-call').style.display = 'none';
+        document.getElementById('btn-wa').style.display = 'none';
+    }
+
+    // Lade tunnel.json (enthält aktuelle NOVA-URL)
+    let novaUrl = null;
+    let online = false;
+    try {
+        const r = await fetch('tunnel.json?_=' + Date.now(), { cache: 'no-store' });
+        const cfg = await r.json();
+        novaUrl = cfg.nova_url;
+        // Health-Check
+        try {
+            const ping = await fetch(novaUrl + '/api/tuerklingel/config', { signal: AbortSignal.timeout(5000) });
+            if (ping.ok) online = true;
+        } catch (e) {}
+    } catch (e) {}
+
+    const status = document.getElementById('status');
+    if (online) {
+        status.textContent = '✓ NOVA online · ' + owner + ' ist erreichbar';
+        status.className = 'status-ok';
+    } else if (novaUrl) {
+        status.textContent = '⚠ NOVA gerade nicht erreichbar · nutz "Anrufen" oder "WhatsApp"';
+        status.className = 'status-warn';
+        document.getElementById('btn-ring').disabled = true;
+        document.getElementById('btn-ring').style.opacity = '.4';
+    } else {
+        status.textContent = '✗ Konfiguration fehlt — bitte ' + owner + ' direkt anrufen';
+        status.className = 'status-err';
+        document.getElementById('btn-ring').disabled = true;
+        document.getElementById('btn-ring').style.opacity = '.4';
+    }
+
+    function showToast(text, type) {
+        const t = document.createElement('div');
+        t.className = 'toast ' + (type || '');
+        t.textContent = text;
+        document.body.appendChild(t);
+        requestAnimationFrame(() => requestAnimationFrame(() => t.classList.add('show')));
+        setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 400); }, 4000);
+    }
+
+    document.getElementById('btn-ring').addEventListener('click', async () => {
+        if (!novaUrl || !online) return;
+        const btn = document.getElementById('btn-ring');
+        const origText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = '⏳ Klingelt …';
+        try {
+            const r = await fetch(novaUrl + '/api/tuerklingel', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    token: token,
+                    name: document.getElementById('vname').value,
+                    message: document.getElementById('vmsg').value
+                })
+            });
+            const d = await r.json();
+            if (d.success) {
+                btn.textContent = '✓ Es klingelt bei ' + (d.ownerName || owner) + '!';
+                btn.style.background = 'linear-gradient(135deg,var(--ok),var(--cyan))';
+                showToast('Klingel gesendet — bitte warten', 'ok');
+                if (d.quiet) showToast('⚠ Quiet-Hours aktiv — möglicherweise stumm', 'warn');
+            } else {
+                btn.textContent = origText;
+                btn.disabled = false;
+                showToast('Fehler: ' + (d.error || 'unbekannt'), 'err');
+            }
+        } catch (e) {
+            btn.textContent = origText;
+            btn.disabled = false;
+            showToast('Verbindung fehlgeschlagen', 'err');
+        }
+    });
+})();
+</script>
+</body>
+</html>
