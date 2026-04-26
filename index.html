@@ -215,6 +215,22 @@ h1{font-family:'Outfit',sans-serif;font-size:1.9rem;font-weight:900;background:l
                 btn.style.background = 'linear-gradient(135deg,var(--ok),var(--cyan))';
                 showToast('🔔 Klingel gesendet — bitte warten', 'ok');
                 if (d.quiet) showToast('🌙 Quiet-Hours aktiv', 'warn');
+            } else if (r.status === 429) {
+                btn.textContent = origText;
+                btn.disabled = false;
+                if (d.needNewCode) {
+                    showToast('⛔ ' + (d.error || 'Bitte frischen QR-Code scannen'), 'err');
+                } else if (d.waitSeconds) {
+                    showToast('⏳ Bitte ' + d.waitSeconds + ' Sek warten', 'warn');
+                } else if (d.waitMinutes) {
+                    showToast('⏳ Bitte ' + d.waitMinutes + ' Min warten', 'warn');
+                } else {
+                    showToast(d.error || 'Zu viele Klingeln', 'warn');
+                }
+            } else if (r.status === 403) {
+                btn.textContent = origText;
+                btn.disabled = false;
+                showToast('🚫 ' + (d.error || 'Gesperrt'), 'err');
             } else {
                 btn.textContent = origText;
                 btn.disabled = false;
