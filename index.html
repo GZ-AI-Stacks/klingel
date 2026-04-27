@@ -301,7 +301,6 @@ h1{font-family:'Outfit',sans-serif;font-size:1.9rem;font-weight:900;background:l
             });
             const d = await r.json();
             if (d.success) {
-                btn.textContent = '✓ ' + (d.ownerName || owner) + ' wurde benachrichtigt!';
                 btn.style.background = 'linear-gradient(135deg,var(--ok),var(--cyan))';
                 showToast('🔔 Klingel gesendet — bitte warten', 'ok');
                 if (d.quiet) showToast('🌙 Quiet-Hours aktiv', 'warn');
@@ -310,11 +309,25 @@ h1{font-family:'Outfit',sans-serif;font-size:1.9rem;font-weight:900;background:l
                     try {
                         const audio = new Audio(novaUrl + d.visitorSoundUrl);
                         audio.volume = 0.85;
-                        audio.play().catch(()=>{}); // still failen wenn Browser blockt
+                        audio.play().catch(()=>{});
                     } catch (e) {}
                 }
                 // Auf Antwort-Texte vom Hausherrn lauschen (60s lang)
                 if (d.ringId) listenForReply(d.ringId);
+                // 23s Countdown: Button bleibt gesperrt, dann automatisch wieder klingelfaehig
+                let secs = 23;
+                const ownerLabel = d.ownerName || owner;
+                (function tick() {
+                    if (secs > 0) {
+                        btn.textContent = '✓ ' + ownerLabel + ' benachrichtigt — ' + secs + 's';
+                        secs--;
+                        setTimeout(tick, 1000);
+                    } else {
+                        btn.textContent = origText;
+                        btn.disabled = false;
+                        btn.style.background = '';
+                    }
+                })();
             } else if (r.status === 429) {
                 btn.textContent = origText;
                 btn.disabled = false;
