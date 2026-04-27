@@ -1,6 +1,6 @@
 {
   "_comment": "AKTUELLE NOVA-Tunnel-URL bei jedem cloudflared-Restart hier eintragen!",
   "_format": "https://xyz-abc-123.trycloudflare.com (KEIN Slash am Ende)",
-  "nova_url": "https://radio-benefit-concern-wendy.trycloudflare.com",
+  "nova_url": "https://two-sure-interactive-potential.trycloudflare.com",
   "updated": "2026-04-27"
 }
