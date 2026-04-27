@@ -1,6 +1,6 @@
 {
-  "_comment": "AKTUELLE NOVA-Tunnel-URL bei jedem cloudflared-Restart hier eintragen!",
-  "_format": "https://xyz-abc-123.trycloudflare.com (KEIN Slash am Ende)",
-  "nova_url": "https://seat-honolulu-carol-holiday.trycloudflare.com",
-  "updated": "2026-04-27"
+  "_comment": "STABILE NOVA-Domain (Cloudflare Named Tunnel) - wechselt nicht mehr bei NOVA-Neustart",
+  "_format": "https://nova.gz-ai-stacks.de (KEIN Slash am Ende)",
+  "nova_url": "https://nova.gz-ai-stacks.de",
+  "updated": "2026-04-27-stable"
 }
