@@ -253,41 +253,79 @@ h1{font-family:'Outfit',sans-serif;font-size:1.9rem;font-weight:900;background:l
         }
     });
 
-    // ===== Walkie-Talkie: Audio vom Hausherrn empfangen =====
-    // MediaSource-API streamt empfangene WebM-Chunks in ein Audio-Element.
-    // Long-Polling: 60 Sek lang lauschen, dann auto-stop.
+    // ===== Walkie-Talkie: Audio vom Hausherrn empfangen + Antworten senden =====
     let voiceListenAbort = null;
+    let replyRecorder = null;
+    let replyStream = null;
+
     async function startVoiceListen(ringId, windowSec) {
         if (voiceListenAbort) { voiceListenAbort.abort(); voiceListenAbort = null; }
         voiceListenAbort = new AbortController();
         const stopAt = Date.now() + (windowSec * 1000);
-        // Visuelles Indikator-Banner
+
+        // Banner mit Antwort-Button
         let banner = document.getElementById('voice-banner');
-        if (!banner) {
-            banner = document.createElement('div');
-            banner.id = 'voice-banner';
-            banner.style.cssText = 'position:fixed;top:14px;left:14px;right:14px;background:linear-gradient(135deg,#8C00FF,#00B4FF);color:#fff;padding:10px 14px;border-radius:10px;font-family:JetBrains Mono,monospace;font-size:.78rem;text-align:center;z-index:9999;box-shadow:0 4px 20px rgba(140,0,255,.4);font-weight:700;';
-            document.body.appendChild(banner);
-        }
-        banner.textContent = '🎙 Verbindung offen — Hausherr kann sprechen';
-        // Poll-Loop: jeder empfangene Chunk wird sofort als Audio abgespielt
+        if (banner) banner.remove();
+        banner = document.createElement('div');
+        banner.id = 'voice-banner';
+        banner.style.cssText = 'position:fixed;top:14px;left:14px;right:14px;background:linear-gradient(135deg,#8C00FF,#00B4FF);color:#fff;padding:12px 14px;border-radius:10px;font-family:JetBrains Mono,monospace;font-size:.78rem;text-align:center;z-index:9999;box-shadow:0 4px 20px rgba(140,0,255,.4);font-weight:700;display:flex;flex-direction:column;gap:8px;align-items:center;';
+        banner.innerHTML = '<div>🎙 Verbindung offen — Hausherr kann sprechen</div>' +
+            '<button id="reply-btn" style="background:rgba(255,255,255,.2);border:2px solid #fff;color:#fff;border-radius:8px;padding:8px 18px;font-family:inherit;font-size:.9rem;font-weight:700;cursor:pointer;">🎤 Antworten</button>';
+        document.body.appendChild(banner);
+
+        const replyBtn = banner.querySelector('#reply-btn');
+        replyBtn.addEventListener('click', () => toggleReply(ringId, replyBtn));
+
+        // Poll-Loop fuer eingehende Chunks
         try {
             while (Date.now() < stopAt) {
                 const r = await fetch(novaUrl + '/api/tuerklingel/voice-listen/' + encodeURIComponent(ringId), { signal: voiceListenAbort.signal });
-                if (r.status === 204) continue; // Timeout, neu pollen
+                if (r.status === 204) continue;
                 if (!r.ok) { await new Promise(rs => setTimeout(rs, 500)); continue; }
                 const blob = await r.blob();
                 if (blob.size === 0) continue;
-                // Sofort abspielen (jeder Chunk ist eigenstaendig)
                 const audio = new Audio(URL.createObjectURL(blob));
                 audio.volume = 1.0;
                 audio.play().catch(()=>{});
             }
-        } catch (e) {
-            // Abgebrochen oder Netzfehler — egal, wir hoeren auf
-        }
+        } catch (e) {}
+
+        // Aufraeumen
+        stopReply();
         if (banner && banner.parentElement) banner.remove();
         voiceListenAbort = null;
+    }
+
+    async function toggleReply(ringId, btn) {
+        if (replyRecorder) { stopReply(); btn.textContent = '🎤 Antworten'; btn.style.background = 'rgba(255,255,255,.2)'; return; }
+        try {
+            replyStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+            const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus'
+                       : MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4';
+            replyRecorder = new MediaRecorder(replyStream, { mimeType: mime, audioBitsPerSecond: 32000 });
+            replyRecorder.ondataavailable = async ev => {
+                if (!ev.data || ev.data.size === 0) return;
+                try {
+                    await fetch(novaUrl + '/api/tuerklingel/reply-send/' + encodeURIComponent(ringId), {
+                        method: 'POST', headers: { 'Content-Type': mime }, body: ev.data
+                    });
+                } catch (e) {}
+            };
+            replyRecorder.start(500);
+            btn.textContent = '🔴 LIVE — Klick zum Stoppen';
+            btn.style.background = 'rgba(255,68,102,.45)';
+            btn.style.borderColor = '#ff8888';
+        } catch (e) {
+            alert('Mikrofon-Fehler: ' + e.message);
+            stopReply();
+        }
+    }
+
+    function stopReply() {
+        if (replyRecorder && replyRecorder.state !== 'inactive') { try { replyRecorder.stop(); } catch(e){} }
+        if (replyStream) { try { replyStream.getTracks().forEach(t => t.stop()); } catch(e){} }
+        replyRecorder = null;
+        replyStream = null;
     }
 })();
 </script>
