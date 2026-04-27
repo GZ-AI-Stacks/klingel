@@ -115,8 +115,11 @@ h1{font-family:'Outfit',sans-serif;font-size:1.9rem;font-weight:900;background:l
         <label for="vname">Wer bist du?</label>
         <input type="text" id="vname" placeholder="DHL · Max · Pizza · Nachbar" maxlength="50" autocomplete="name">
     </div>
-    <div class="field">
-        <label for="vmsg">Anliegen</label>
+    <div class="field" style="position:relative;">
+        <label for="vmsg" style="display:flex;justify-content:space-between;align-items:center;">
+            <span>Anliegen</span>
+            <button type="button" id="btn-mic" title="Sprechen statt tippen" style="background:rgba(140,0,255,.15);border:1px solid #8C00FF;color:#8C00FF;border-radius:6px;padding:4px 10px;font-size:.7rem;font-family:JetBrains Mono,monospace;cursor:pointer;display:none;">🎤 Sprechen</button>
+        </label>
         <textarea id="vmsg" placeholder="Paket abgeben · ich bin's, der Nachbar …" maxlength="200"></textarea>
     </div>
 
@@ -193,6 +196,77 @@ h1{font-family:'Outfit',sans-serif;font-size:1.9rem;font-weight:900;background:l
         setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 500); }, 4500);
     }
 
+    // ===== Spracheingabe fuer Anliegen-Feld (lokal im Browser, kostenlos) =====
+    (function initSpeechToText() {
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const micBtn = document.getElementById('btn-mic');
+        const textarea = document.getElementById('vmsg');
+        if (!SR || !micBtn || !textarea) return;
+        micBtn.style.display = 'inline-block';
+
+        let recognition = null;
+        let listening = false;
+        const origText = micBtn.textContent;
+
+        function start() {
+            try {
+                recognition = new SR();
+                recognition.lang = 'de-DE';
+                recognition.continuous = true;
+                recognition.interimResults = true;
+                let baseText = textarea.value;
+                if (baseText && !baseText.endsWith(' ')) baseText += ' ';
+                recognition.onresult = (ev) => {
+                    let interim = '';
+                    let final = '';
+                    for (let i = ev.resultIndex; i < ev.results.length; i++) {
+                        const r = ev.results[i];
+                        if (r.isFinal) final += r[0].transcript;
+                        else interim += r[0].transcript;
+                    }
+                    if (final) {
+                        baseText += final + ' ';
+                        textarea.value = baseText.slice(0, 200);
+                    } else {
+                        textarea.value = (baseText + interim).slice(0, 200);
+                    }
+                };
+                recognition.onerror = (ev) => {
+                    showToast('Mikro-Fehler: ' + ev.error, 'err');
+                    stop();
+                };
+                recognition.onend = () => {
+                    if (listening) {
+                        try { recognition.start(); } catch (e) { stop(); }
+                    }
+                };
+                recognition.start();
+                listening = true;
+                micBtn.textContent = '🔴 Höre zu — tippen zum Stoppen';
+                micBtn.style.background = 'rgba(255,68,102,.25)';
+                micBtn.style.borderColor = '#FF4466';
+                micBtn.style.color = '#FF4466';
+            } catch (e) {
+                showToast('Mikro nicht verfuegbar', 'err');
+            }
+        }
+
+        function stop() {
+            listening = false;
+            if (recognition) { try { recognition.stop(); } catch (e) {} }
+            recognition = null;
+            micBtn.textContent = origText;
+            micBtn.style.background = 'rgba(140,0,255,.15)';
+            micBtn.style.borderColor = '#8C00FF';
+            micBtn.style.color = '#8C00FF';
+        }
+
+        micBtn.addEventListener('click', () => {
+            if (listening) stop();
+            else start();
+        });
+    })();
+
     document.getElementById('btn-ring').addEventListener('click', async () => {
         if (!novaUrl || !online) return;
         const btn = document.getElementById('btn-ring');
@@ -223,8 +297,6 @@ h1{font-family:'Outfit',sans-serif;font-size:1.9rem;font-weight:900;background:l
                         audio.play().catch(()=>{}); // still failen wenn Browser blockt
                     } catch (e) {}
                 }
-                // Walkie-Talkie: auf Audio-Chunks vom Hausherrn lauschen
-                if (d.ringId) startVoiceListen(d.ringId, d.voiceWindowSec || 60);
             } else if (r.status === 429) {
                 btn.textContent = origText;
                 btn.disabled = false;
@@ -253,80 +325,6 @@ h1{font-family:'Outfit',sans-serif;font-size:1.9rem;font-weight:900;background:l
         }
     });
 
-    // ===== Walkie-Talkie: Audio vom Hausherrn empfangen + Antworten senden =====
-    let voiceListenAbort = null;
-    let replyRecorder = null;
-    let replyStream = null;
-
-    async function startVoiceListen(ringId, windowSec) {
-        if (voiceListenAbort) { voiceListenAbort.abort(); voiceListenAbort = null; }
-        voiceListenAbort = new AbortController();
-        const stopAt = Date.now() + (windowSec * 1000);
-
-        // Banner mit Antwort-Button
-        let banner = document.getElementById('voice-banner');
-        if (banner) banner.remove();
-        banner = document.createElement('div');
-        banner.id = 'voice-banner';
-        banner.style.cssText = 'position:fixed;top:14px;left:14px;right:14px;background:linear-gradient(135deg,#8C00FF,#00B4FF);color:#fff;padding:12px 14px;border-radius:10px;font-family:JetBrains Mono,monospace;font-size:.78rem;text-align:center;z-index:9999;box-shadow:0 4px 20px rgba(140,0,255,.4);font-weight:700;display:flex;flex-direction:column;gap:8px;align-items:center;';
-        banner.innerHTML = '<div>🎙 Verbindung offen — Hausherr kann sprechen</div>' +
-            '<button id="reply-btn" style="background:rgba(255,255,255,.2);border:2px solid #fff;color:#fff;border-radius:8px;padding:8px 18px;font-family:inherit;font-size:.9rem;font-weight:700;cursor:pointer;">🎤 Antworten</button>';
-        document.body.appendChild(banner);
-
-        const replyBtn = banner.querySelector('#reply-btn');
-        replyBtn.addEventListener('click', () => toggleReply(ringId, replyBtn));
-
-        // Poll-Loop fuer eingehende Chunks
-        try {
-            while (Date.now() < stopAt) {
-                const r = await fetch(novaUrl + '/api/tuerklingel/voice-listen/' + encodeURIComponent(ringId), { signal: voiceListenAbort.signal });
-                if (r.status === 204) continue;
-                if (!r.ok) { await new Promise(rs => setTimeout(rs, 500)); continue; }
-                const blob = await r.blob();
-                if (blob.size === 0) continue;
-                const audio = new Audio(URL.createObjectURL(blob));
-                audio.volume = 1.0;
-                audio.play().catch(()=>{});
-            }
-        } catch (e) {}
-
-        // Aufraeumen
-        stopReply();
-        if (banner && banner.parentElement) banner.remove();
-        voiceListenAbort = null;
-    }
-
-    async function toggleReply(ringId, btn) {
-        if (replyRecorder) { stopReply(); btn.textContent = '🎤 Antworten'; btn.style.background = 'rgba(255,255,255,.2)'; return; }
-        try {
-            replyStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
-            const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus'
-                       : MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4';
-            replyRecorder = new MediaRecorder(replyStream, { mimeType: mime, audioBitsPerSecond: 32000 });
-            replyRecorder.ondataavailable = async ev => {
-                if (!ev.data || ev.data.size === 0) return;
-                try {
-                    await fetch(novaUrl + '/api/tuerklingel/reply-send/' + encodeURIComponent(ringId), {
-                        method: 'POST', headers: { 'Content-Type': mime }, body: ev.data
-                    });
-                } catch (e) {}
-            };
-            replyRecorder.start(500);
-            btn.textContent = '🔴 LIVE — Klick zum Stoppen';
-            btn.style.background = 'rgba(255,68,102,.45)';
-            btn.style.borderColor = '#ff8888';
-        } catch (e) {
-            alert('Mikrofon-Fehler: ' + e.message);
-            stopReply();
-        }
-    }
-
-    function stopReply() {
-        if (replyRecorder && replyRecorder.state !== 'inactive') { try { replyRecorder.stop(); } catch(e){} }
-        if (replyStream) { try { replyStream.getTracks().forEach(t => t.stop()); } catch(e){} }
-        replyRecorder = null;
-        replyStream = null;
-    }
 })();
 </script>
 </body>
