@@ -223,6 +223,8 @@ h1{font-family:'Outfit',sans-serif;font-size:1.9rem;font-weight:900;background:l
                         audio.play().catch(()=>{}); // still failen wenn Browser blockt
                     } catch (e) {}
                 }
+                // Walkie-Talkie: auf Audio-Chunks vom Hausherrn lauschen
+                if (d.ringId) startVoiceListen(d.ringId, d.voiceWindowSec || 60);
             } else if (r.status === 429) {
                 btn.textContent = origText;
                 btn.disabled = false;
@@ -250,6 +252,43 @@ h1{font-family:'Outfit',sans-serif;font-size:1.9rem;font-weight:900;background:l
             showToast('Verbindung fehlgeschlagen', 'err');
         }
     });
+
+    // ===== Walkie-Talkie: Audio vom Hausherrn empfangen =====
+    // MediaSource-API streamt empfangene WebM-Chunks in ein Audio-Element.
+    // Long-Polling: 60 Sek lang lauschen, dann auto-stop.
+    let voiceListenAbort = null;
+    async function startVoiceListen(ringId, windowSec) {
+        if (voiceListenAbort) { voiceListenAbort.abort(); voiceListenAbort = null; }
+        voiceListenAbort = new AbortController();
+        const stopAt = Date.now() + (windowSec * 1000);
+        // Visuelles Indikator-Banner
+        let banner = document.getElementById('voice-banner');
+        if (!banner) {
+            banner = document.createElement('div');
+            banner.id = 'voice-banner';
+            banner.style.cssText = 'position:fixed;top:14px;left:14px;right:14px;background:linear-gradient(135deg,#8C00FF,#00B4FF);color:#fff;padding:10px 14px;border-radius:10px;font-family:JetBrains Mono,monospace;font-size:.78rem;text-align:center;z-index:9999;box-shadow:0 4px 20px rgba(140,0,255,.4);font-weight:700;';
+            document.body.appendChild(banner);
+        }
+        banner.textContent = '🎙 Verbindung offen — Hausherr kann sprechen';
+        // Poll-Loop: jeder empfangene Chunk wird sofort als Audio abgespielt
+        try {
+            while (Date.now() < stopAt) {
+                const r = await fetch(novaUrl + '/api/tuerklingel/voice-listen/' + encodeURIComponent(ringId), { signal: voiceListenAbort.signal });
+                if (r.status === 204) continue; // Timeout, neu pollen
+                if (!r.ok) { await new Promise(rs => setTimeout(rs, 500)); continue; }
+                const blob = await r.blob();
+                if (blob.size === 0) continue;
+                // Sofort abspielen (jeder Chunk ist eigenstaendig)
+                const audio = new Audio(URL.createObjectURL(blob));
+                audio.volume = 1.0;
+                audio.play().catch(()=>{});
+            }
+        } catch (e) {
+            // Abgebrochen oder Netzfehler — egal, wir hoeren auf
+        }
+        if (banner && banner.parentElement) banner.remove();
+        voiceListenAbort = null;
+    }
 })();
 </script>
 </body>
