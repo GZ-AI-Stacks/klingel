@@ -313,6 +313,8 @@ h1{font-family:'Outfit',sans-serif;font-size:1.9rem;font-weight:900;background:l
                         audio.play().catch(()=>{}); // still failen wenn Browser blockt
                     } catch (e) {}
                 }
+                // Auf Antwort-Texte vom Hausherrn lauschen (60s lang)
+                if (d.ringId) listenForReply(d.ringId);
             } else if (r.status === 429) {
                 btn.textContent = origText;
                 btn.disabled = false;
@@ -341,7 +343,54 @@ h1{font-family:'Outfit',sans-serif;font-size:1.9rem;font-weight:900;background:l
         }
     });
 
+    // ===== Antwort-Texte vom Hausherrn empfangen =====
+    let replyAbort = null;
+    async function listenForReply(ringId) {
+        if (replyAbort) replyAbort.abort();
+        replyAbort = new AbortController();
+        const stopAt = Date.now() + 65000;
+        try {
+            while (Date.now() < stopAt) {
+                const r = await fetch(novaUrl + '/api/tuerklingel/reply-text-listen/' + encodeURIComponent(ringId), { signal: replyAbort.signal });
+                if (r.status === 204) continue;
+                if (!r.ok) { await new Promise(rs => setTimeout(rs, 800)); continue; }
+                const d = await r.json();
+                if (d && d.text) showReplyBanner(d.text);
+            }
+        } catch (e) {}
+        replyAbort = null;
+    }
+
+    function showReplyBanner(text) {
+        // bestehendes Banner entfernen
+        const old = document.getElementById('reply-banner');
+        if (old) old.remove();
+        const banner = document.createElement('div');
+        banner.id = 'reply-banner';
+        banner.style.cssText = 'position:fixed;top:14px;left:14px;right:14px;background:linear-gradient(135deg,#00FFAA,#00B4FF);color:#04070d;padding:14px 18px;border-radius:14px;font-family:Outfit,sans-serif;font-size:1rem;font-weight:700;text-align:center;z-index:9999;box-shadow:0 4px 30px rgba(0,255,170,.5);animation:slideDown .4s ease;';
+        banner.innerHTML = '<div style="font-size:.7rem;letter-spacing:2px;opacity:.7;margin-bottom:4px;">💬 ANTWORT</div><div>' + text.replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c])) + '</div>';
+        document.body.appendChild(banner);
+        // Vibration als haptisches Signal
+        if (navigator.vibrate) try { navigator.vibrate([100, 50, 100]); } catch (e) {}
+        // Sound
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const o = ctx.createOscillator();
+            const g = ctx.createGain();
+            o.frequency.value = 880; o.type = 'sine';
+            g.gain.value = 0.15;
+            o.connect(g); g.connect(ctx.destination);
+            o.start(); o.frequency.setValueAtTime(660, ctx.currentTime + 0.15); o.stop(ctx.currentTime + 0.3);
+            setTimeout(() => ctx.close(), 500);
+        } catch (e) {}
+        // Banner nach 8s ausblenden, aber durch neue Antwort ersetzen falls eine kommt
+        setTimeout(() => { if (banner.parentElement) banner.remove(); }, 8000);
+    }
 })();
+
+const _animStyle = document.createElement('style');
+_animStyle.textContent = '@keyframes slideDown{from{transform:translateY(-100%);opacity:0;}to{transform:translateY(0);opacity:1;}}';
+document.head.appendChild(_animStyle);
 </script>
 </body>
 </html>
