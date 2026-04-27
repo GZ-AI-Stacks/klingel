@@ -210,8 +210,7 @@ h1{font-family:'Outfit',sans-serif;font-size:1.9rem;font-weight:900;background:l
 
         let recognition = null;
         let listening = false;
-        let committedText = '';     // bestaetigter Text (alle final-Resultate)
-        let processedFinals = 0;    // Anzahl bereits verarbeiteter final-Indizes
+        let preExistingText = '';   // was vor dem Sprechen schon im Feld stand
         const origText = micBtn.textContent;
 
         function start() {
@@ -222,27 +221,21 @@ h1{font-family:'Outfit',sans-serif;font-size:1.9rem;font-weight:900;background:l
                 recognition.interimResults = true;
                 recognition.maxAlternatives = 1;
 
-                // Startbasis: was schon im Feld steht bleibt
-                committedText = textarea.value;
-                if (committedText && !committedText.endsWith(' ')) committedText += ' ';
-                processedFinals = 0;
+                // Startbasis: was schon im Feld steht bleibt unangetastet
+                preExistingText = textarea.value;
+                if (preExistingText && !preExistingText.endsWith(' ')) preExistingText += ' ';
 
                 recognition.onresult = (ev) => {
-                    let interim = '';
-                    // Alle finals VOR processedFinals haben wir schon, ueberspringen.
-                    // Alle ab processedFinals: Text aufnehmen, dann processedFinals hochsetzen.
+                    // Komplette Rekonstruktion bei jedem Event:
+                    // ev.results enthaelt ALLE Resultate seit Sitzungsbeginn,
+                    // einfach alle abklappern und zusammenbauen.
+                    let allText = '';
                     for (let i = 0; i < ev.results.length; i++) {
-                        const r = ev.results[i];
-                        if (r.isFinal) {
-                            if (i >= processedFinals) {
-                                committedText += r[0].transcript.trim() + ' ';
-                                processedFinals = i + 1;
-                            }
-                        } else {
-                            interim += r[0].transcript;
-                        }
+                        allText += ev.results[i][0].transcript;
                     }
-                    textarea.value = (committedText + interim).slice(0, 200);
+                    // Whitespace normalisieren — entfernt Doppelleerzeichen wenn Chunks gemerged sind
+                    allText = allText.replace(/\s+/g, ' ').trim();
+                    textarea.value = (preExistingText + allText).slice(0, 200);
                 };
                 recognition.onerror = (ev) => {
                     if (ev.error === 'no-speech' || ev.error === 'aborted') return; // harmlos
@@ -272,8 +265,7 @@ h1{font-family:'Outfit',sans-serif;font-size:1.9rem;font-weight:900;background:l
                 try { recognition.onend = null; recognition.stop(); } catch (e) {}
             }
             recognition = null;
-            // committed in's Feld festschreiben (ohne interim-Reste)
-            textarea.value = committedText.trim().slice(0, 200);
+            // textarea.value bleibt wie zuletzt gesetzt — kein extra Cleanup
             micBtn.textContent = origText;
             micBtn.style.background = 'rgba(140,0,255,.15)';
             micBtn.style.borderColor = '#8C00FF';
