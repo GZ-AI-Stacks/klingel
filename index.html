@@ -210,47 +210,53 @@ h1{font-family:'Outfit',sans-serif;font-size:1.9rem;font-weight:900;background:l
 
         let recognition = null;
         let listening = false;
-        let preExistingText = '';   // was vor dem Sprechen schon im Feld stand
+        let bestFinal = '';         // letzter bekannter "final" Transcript
+        let appliedThisSession = false; // wurde Final schon ans Feld angehaengt?
+        let preExistingText = '';
         const origText = micBtn.textContent;
 
         function start() {
             try {
                 recognition = new SR();
                 recognition.lang = 'de-DE';
-                recognition.continuous = true;
+                recognition.continuous = false;   // SINGLE-SHOT — kein continuous!
                 recognition.interimResults = true;
                 recognition.maxAlternatives = 1;
 
-                // Startbasis: was schon im Feld steht bleibt unangetastet
                 preExistingText = textarea.value;
                 if (preExistingText && !preExistingText.endsWith(' ')) preExistingText += ' ';
+                bestFinal = '';
+                appliedThisSession = false;
 
                 recognition.onresult = (ev) => {
-                    // Komplette Rekonstruktion bei jedem Event:
-                    // ev.results enthaelt ALLE Resultate seit Sitzungsbeginn,
-                    // einfach alle abklappern und zusammenbauen.
-                    let allText = '';
-                    for (let i = 0; i < ev.results.length; i++) {
-                        allText += ev.results[i][0].transcript;
+                    // Im single-shot Mode liefert Chrome bei interim das aktuelle Wort,
+                    // bei final das fertige Ergebnis. Wir nehmen IMMER nur das letzte
+                    // Result aus dem Array — das ist das aktuellste.
+                    const last = ev.results[ev.results.length - 1];
+                    if (!last) return;
+                    const text = last[0].transcript.trim();
+                    if (last.isFinal) {
+                        bestFinal = text;
                     }
-                    // Whitespace normalisieren — entfernt Doppelleerzeichen wenn Chunks gemerged sind
-                    allText = allText.replace(/\s+/g, ' ').trim();
-                    textarea.value = (preExistingText + allText).slice(0, 200);
+                    // Live-Anzeige: preExistingText + aktuelles Result (interim oder final)
+                    textarea.value = (preExistingText + text).slice(0, 200);
                 };
                 recognition.onerror = (ev) => {
-                    if (ev.error === 'no-speech' || ev.error === 'aborted') return; // harmlos
+                    if (ev.error === 'no-speech' || ev.error === 'aborted') return;
                     showToast('Mikro-Fehler: ' + ev.error, 'err');
-                    stop();
                 };
                 recognition.onend = () => {
-                    // KEIN Auto-Restart — User muss bewusst nochmal tippen.
-                    // Auto-Restart war der Hauptgrund fuer Wiederholungen weil
-                    // continuous-Mode auf Handys wackelig ist.
+                    // Single-shot endet nach Sprechpause automatisch.
+                    // Final-Text einmalig ans Feld haengen, dann sauber stoppen.
+                    if (!appliedThisSession && bestFinal) {
+                        textarea.value = (preExistingText + bestFinal).slice(0, 200);
+                        appliedThisSession = true;
+                    }
                     stop();
                 };
                 recognition.start();
                 listening = true;
-                micBtn.textContent = '🔴 Höre zu — tippen zum Stoppen';
+                micBtn.textContent = '🔴 Sprich jetzt...';
                 micBtn.style.background = 'rgba(255,68,102,.25)';
                 micBtn.style.borderColor = '#FF4466';
                 micBtn.style.color = '#FF4466';
@@ -265,7 +271,6 @@ h1{font-family:'Outfit',sans-serif;font-size:1.9rem;font-weight:900;background:l
                 try { recognition.onend = null; recognition.stop(); } catch (e) {}
             }
             recognition = null;
-            // textarea.value bleibt wie zuletzt gesetzt — kein extra Cleanup
             micBtn.textContent = origText;
             micBtn.style.background = 'rgba(140,0,255,.15)';
             micBtn.style.borderColor = '#8C00FF';
