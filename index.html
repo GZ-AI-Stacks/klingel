@@ -309,8 +309,19 @@ h1{font-family:'Outfit',sans-serif;font-size:1.9rem;font-weight:900;background:l
                     try {
                         const audio = new Audio(novaUrl + d.visitorSoundUrl);
                         audio.volume = 0.85;
-                        audio.play().catch(()=>{});
-                    } catch (e) {}
+                        audio.preload = 'auto';
+                        // Auto-Play: direkt im Click-Handler triggern (Browser-Policy)
+                        const playPromise = audio.play();
+                        if (playPromise !== undefined) {
+                            playPromise.catch(err => {
+                                console.warn('[sound]', err.name, err.message);
+                                showToast('🔇 Sound blockiert: ' + err.message.slice(0, 60), 'warn');
+                            });
+                        }
+                    } catch (e) {
+                        console.warn('[sound] init', e);
+                        showToast('🔇 Sound-Fehler: ' + e.message.slice(0, 60), 'warn');
+                    }
                 }
                 // Auf Antwort-Texte vom Hausherrn lauschen (60s lang)
                 if (d.ringId) listenForReply(d.ringId);
