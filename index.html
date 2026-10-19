@@ -172,7 +172,7 @@ h1{font-family:'Outfit',sans-serif;font-size:1.9rem;font-weight:900;background:l
         try {
             const ctrl = new AbortController();
             const t = setTimeout(() => ctrl.abort(), 6000);
-            const ping = await fetch(novaUrl + '/api/tuerklingel/config', { signal: ctrl.signal });
+            const ping = await fetch(novaUrl + '/api/tuerklingel/ping', { signal: ctrl.signal });
             clearTimeout(t);
             if (ping.ok) online = true;
         } catch (e) {}
@@ -290,7 +290,7 @@ h1{font-family:'Outfit',sans-serif;font-size:1.9rem;font-weight:900;background:l
         btn.disabled = true;
         btn.textContent = '⏳ Klingelt …';
         try {
-            const r = await fetch(novaUrl + '/api/tuerklingel', {
+            const r = await fetch(novaUrl + '/api/tuerklingel/ring', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
